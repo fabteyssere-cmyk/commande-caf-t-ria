@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Commande de boissons</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- Ajout PWA -->
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+    <meta name="theme-color" content="#007BFF">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Commande Boissons">
+    <script>
+        // Enregistrement du service worker pour PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('sw.js');
+            });
+        }
+    </script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            text-align: center;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+            font-size: 1.5em;
+        }
+        .boisson {
+            margin: 15px auto;
+            padding: 10px;
+            background-color: #fff;
+            border-radius: 8px;
+            width: 95%;
+            max-width: 350px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .boisson > div {
+            margin-bottom: 8px;
+        }
+        button {
+            font-size: 1.2em;
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            background-color: #22c513;
+            color: white;
+            cursor: pointer;
+            min-width: 40px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        span {
+            font-size: 1.2em;
+            color: #555;
+            margin: 0 10px;
+        }
+        .reset {
+            margin-top: 30px;
+        }
+        input[type=text] {
+            padding: 8px;
+            font-size: 1em;
+            margin-bottom: 10px;
+            width: 90%;
+            box-sizing: border-box;
+        }
+        .compteur-boisson-ajoutee {
+            margin-top: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #ajouterBtn {
+            width: 95%;
+            max-width: 350px;
+            margin: 15px auto;
+            display: block;
+        }
+        @media (max-width: 600px) {
+            body {
+                padding: 5px;
+            }
+            h1 {
+                font-size: 1.1em;
+            }
+            .boisson, #ajouterBtn {
+                width: 100%;
+                max-width: 100%;
+            }
+            button {
+                font-size: 1em;
+                padding: 8px 10px;
+                min-width: 30px;
+            }
+            input[type=text] {
+                font-size: 0.95em;
+            }
+            .compteur-boisson-ajoutee {
+                font-size: 1em;
+            }
+        }
+        .compteur-ligne {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #resumeCommande {
+            margin-top: 20px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.07);
+            padding: 15px;
+            max-width: 350px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .the-select {
+            margin-bottom: 8px;
+            width: 80%;
+        }
+    </style>
+    <script>
+        let compteurs = {
+            "Café long": 0,
+            "Expresso": 0,
+            "Café au lait": 0,
+            "Thé vert": 0,
+            "Thé noir": 0,
+            "Thé à la menthe": 0,
+            "Thé fruits rouges": 0,
+            "Cappuccino": 0,
+            "Chocolat chaud": 0
+        };
+
+        let boissonsAjoutees = [];
+
+        function commander(boisson, action) {
+            if (!(boisson in compteurs)) {
+                compteurs[boisson] = 0;
+            }
+            if (action === 'plus') {
+                compteurs[boisson]++;
+            } else if (action === 'moins' && compteurs[boisson] > 0) {
+                compteurs[boisson]--;
+            }
+            const compteurElem = document.getElementById(boisson);
+            if (compteurElem) {
+                compteurElem.innerText = compteurs[boisson];
+            }
+        }
+
+        function resetCompteurs() {
+            for (let boisson in compteurs) {
+                compteurs[boisson] = 0;
+                const compteurElem = document.getElementById(boisson);
+                if (compteurElem) {
+                    compteurElem.innerText = 0;
+                }
+            }
+            const container = document.getElementById('autresBoissons');
+            container.innerHTML = '';
+            boissonsAjoutees.forEach(id => {
+                delete compteurs[id];
+            });
+            boissonsAjoutees = [];
+            document.getElementById("resumeCommande").innerHTML = "";
+            // Réinitialise le menu déroulant du thé
+            document.getElementById('typeThe').selectedIndex = 0;
+            updateTheLabel();
+        }
+
+        function ajouterBoisson() {
+            const container = document.getElementById('autresBoissons');
+            const id = 'boisson_' + Date.now();
+            compteurs[id] = 0;
+            boissonsAjoutees.push(id);
+
+            const div = document.createElement('div');
+            div.className = 'boisson';
+
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.placeholder = 'Nom de la boisson';
+
+            const compteurBloc = document.createElement('div');
+            compteurBloc.className = 'compteur-boisson-ajoutee compteur-ligne';
+
+            const moins = document.createElement('button');
+            moins.innerText = '-';
+
+            const compteur = document.createElement('span');
+            compteur.id = id;
+            compteur.innerText = '0';
+
+            const plus = document.createElement('button');
+            plus.innerText = '+';
+
+            input.oninput = function() {
+                let nom = input.value.trim() || id;
+                compteur.id = nom;
+                moins.onclick = function() { commander(nom, 'moins'); };
+                plus.onclick = function() { commander(nom, 'plus'); };
+                if (!(nom in compteurs)) {
+                    compteurs[nom] = 0;
+                    compteur.innerText = '0';
+                } else {
+                    compteur.innerText = compteurs[nom];
+                }
+            };
+
+            moins.onclick = function() { commander(id, 'moins'); };
+            plus.onclick = function() { commander(id, 'plus'); };
+
+            div.appendChild(input);
+            compteurBloc.appendChild(moins);
+            compteurBloc.appendChild(compteur);
+            compteurBloc.appendChild(plus);
+            div.appendChild(compteurBloc);
+
+            container.appendChild(div);
+        }
+
+        function getTheName() {
+            const select = document.getElementById('typeThe');
+            return select ? select.value : 'Thé vert';
+        }
+
+        function updateTheLabel() {
+            const nom = getTheName();
+            const compteurElem = document.getElementById(nom);
+            if (!(nom in compteurs)) {
+                compteurs[nom] = 0;
+            }
+            // Met à jour l'affichage du compteur sélectionné
+            document.querySelectorAll('.the-compteur').forEach(span => {
+                span.style.display = 'none';
+            });
+            if (compteurElem) {
+                compteurElem.style.display = 'inline-block';
+            }
+        }
+
+        function afficherResume() {
+            let resume = "<h2>Résumé de la commande</h2><ul>";
+            let hasCommande = false;
+            for (let boisson in compteurs) {
+                if (compteurs[boisson] > 0) {
+                    resume += `<li><strong>${boisson}</strong> : ${compteurs[boisson]}</li>`;
+                    hasCommande = true;
+                }
+            }
+            resume += "</ul>";
+            if (!hasCommande) {
+                resume = "<h2>Résumé de la commande</h2><p>Aucune boisson sélectionnée.</p>";
+            }
+            document.getElementById("resumeCommande").innerHTML = resume;
+        }
+
+        window.onload = function() {
+            updateTheLabel();
+        };
+    </script>
+</head>
+<body>
+    <h1>Commande de boissons ☕</h1>
+    
+    <div class='boisson'>
+        <div><strong>☕ Café long</strong></div>
+        <div class="compteur-ligne">
+            <button onclick="commander('Café long', 'moins')">-</button>
+            <span id="Café long">0</span>
+            <button onclick="commander('Café long', 'plus')">+</button>
+        </div>
+    </div>
+    
+    <div class='boisson'>
+        <div><strong>🍵 Expresso</strong></div>
+        <div class="compteur-ligne">
+            <button onclick="commander('Expresso', 'moins')">-</button>
+            <span id="Expresso">0</span>
+            <button onclick="commander('Expresso', 'plus')">+</button>
+        </div>
+    </div>
+    
+    <div class='boisson'>
+        <div><strong>🥛☕ Café au lait</strong></div>
+        <div class="compteur-ligne">
+            <button onclick="commander('Café au lait', 'moins')">-</button>
+            <span id="Café au lait">0</span>
+            <button onclick="commander('Café au lait', 'plus')">+</button>
+        </div>
+    </div>
+    
+    <div class='boisson'>
+        <div><strong>🫖 Thé</strong></div>
+        <div>
+            <select id="typeThe" class="the-select" onchange="updateTheLabel()">
+                <option value="Rêve enfantin">Rêve enfantin</option>
+                <option value="Thé vert menthe">Thé vert menthe</option>
+                 <option value="Thé vert jasmin">Thé vert jasmin</option>
+                <option value="Thé vert">Thé vert</option>
+                <option value="Menthe poivrée">Menthe poivrée</option>
+                <option value="Jardin des merveilles">Jardin des merveilles</option>
+                <option value="Thé fruits rouges">Thé fruits rouges</option>
+            </select>
+        </div>
+        <div class="compteur-ligne">
+            <button onclick="commander(getTheName(), 'moins'); updateTheLabel();">-</button>
+            <span id="Rêve enfantin" class="the-compteur">0</span>
+            <span id="Thé vert menthe" class="the-compteur" style="display:none;">0</span>
+            <span id="Thé vert jasmin" class="the-compteur" style="display:none;">0</span>
+            <span id="Thé vert" class="the-compteur" style="display:none;">0</span>
+            <span id="Menthe poivrée" class="the-compteur" style="display:none;">0</span>
+            <span id="Jardin des merveilles" class="the-compteur" style="display:none;">0</span>
+            <span id="Thé fruits rouges" class="the-compteur" style="display:none;">0</span>
+            <button onclick="commander(getTheName(), 'plus'); updateTheLabel();">+</button>
+        </div>
+    </div>
+    
+    <div class='boisson'>
+        <div><strong>🍫☕ Cappuccino</strong></div>
+        <div class="compteur-ligne">
+            <button onclick="commander('Cappuccino', 'moins')">-</button>
+            <span id="Cappuccino">0</span>
+            <button onclick="commander('Cappuccino', 'plus')">+</button>
+        </div>
+    </div>
+    
+    <div class='boisson'>
+        <div><strong>🍫 Chocolat chaud</strong></div>
+        <div class="compteur-ligne">
+            <button onclick="commander('Chocolat chaud', 'moins')">-</button>
+            <span id="Chocolat chaud">0</span>
+            <button onclick="commander('Chocolat chaud', 'plus')">+</button>
+        </div>
+    </div>
+
+    <div class='boisson'>
+        <div><strong>🌰☕ Café Noisette</strong></div>
+        <div class="compteur-ligne">
+            <button onclick="commander('Café Noisette', 'moins')">-</button>
+            <span id="Café Noisette">0</span>
+            <button onclick="commander('Café Noisette', 'plus')">+</button>
+        </div>
+    </div>
+
+    <div id='autresBoissons'></div>
+    <button id='ajouterBtn' onclick='ajouterBoisson()'>Ajouter une boisson</button>
+    <div class='reset'>
+        <button onclick='resetCompteurs()'>Réinitialiser</button>
+        <button onclick='afficherResume()'>Valider</button>
+    </div>
+    <div id="resumeCommande"></div>
+</body>
+</html>
